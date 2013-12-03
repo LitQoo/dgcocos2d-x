@@ -377,6 +377,105 @@ CCTexture2D * CCTextureCache::addImage(const char * path)
 	return addImage(path, false, "");
 }
 
+
+CCTexture2D * CCTextureCache::addImage(const char * path, bool relativePath) // by ksoo
+{
+	CCAssert(path != NULL, "TextureCache: fileimage MUST not be NULL");
+	
+	CCTexture2D * texture = NULL;
+	CCImage* pImage = NULL;
+	// Split up directory and filename
+	// MUTEX:
+	// Needed since addImageAsync calls this method from a different thread
+	
+	//pthread_mutex_lock(m_pDictLock);
+	
+	std::string pathKey = path;
+	
+	if(relativePath)
+		pathKey = CCFileUtils::sharedFileUtils()->fullPathForFilename(pathKey.c_str());
+	else
+		pathKey = path;
+	if (pathKey.size() == 0)
+	{
+		return NULL;
+	}
+	texture = (CCTexture2D*)m_pTextures->objectForKey(pathKey.c_str());
+	
+	std::string fullpath = pathKey; // (CCFileUtils::sharedFileUtils()->fullPathFromRelativePath(path));
+	if (! texture)
+	{
+		std::string lowerCase(pathKey);
+		for (unsigned int i = 0; i < lowerCase.length(); ++i)
+		{
+			lowerCase[i] = tolower(lowerCase[i]);
+		}
+		// all images are handled by UIImage except PVR extension that is handled by our own handler
+		do
+		{
+			if (std::string::npos != lowerCase.find(".pvr"))
+			{
+				texture = this->addPVRImage(fullpath.c_str());
+			}
+			else if (std::string::npos != lowerCase.find(".pkm"))
+			{
+				// ETC1 file format, only supportted on Android
+				texture = this->addETCImage(fullpath.c_str());
+			}
+			else
+			{
+				CCImage::EImageFormat eImageFormat = CCImage::kFmtUnKnown;
+				if (std::string::npos != lowerCase.find(".png"))
+				{
+					eImageFormat = CCImage::kFmtPng;
+				}
+				else if (std::string::npos != lowerCase.find(".jpg") || std::string::npos != lowerCase.find(".jpeg"))
+				{
+					eImageFormat = CCImage::kFmtJpg;
+				}
+				else if (std::string::npos != lowerCase.find(".tif") || std::string::npos != lowerCase.find(".tiff"))
+				{
+					eImageFormat = CCImage::kFmtTiff;
+				}
+				else if (std::string::npos != lowerCase.find(".webp"))
+				{
+					eImageFormat = CCImage::kFmtWebp;
+				}
+				
+				pImage = new CCImage();
+				CC_BREAK_IF(NULL == pImage);
+				
+				bool bRet = pImage->initWithImageFile(fullpath.c_str(), eImageFormat);
+				CC_BREAK_IF(!bRet);
+				
+				texture = new CCTexture2D();
+				
+				if( texture &&
+					 texture->initWithImage(pImage) )
+				{
+#if CC_ENABLE_CACHE_TEXTURE_DATA
+					// cache the texture file name
+					VolatileTexture::addImageTexture(texture, fullpath.c_str(), eImageFormat);
+#endif
+					m_pTextures->setObject(texture, pathKey.c_str());
+					texture->release();
+				}
+				else
+				{
+					CCLOG("cocos2d: Couldn't create texture for file:%s in CCTextureCache", path);
+				}
+			}
+		} while (0);
+	}
+	
+	CC_SAFE_RELEASE(pImage);
+	
+	//pthread_mutex_unlock(m_pDictLock);
+	return texture;
+}
+
+
+
 CCTexture2D * CCTextureCache::addImage(const char * path, bool is_document, std::string document_path)
 {
     CCAssert(path != NULL, "TextureCache: fileimage MUST not be NULL");
@@ -386,11 +485,11 @@ CCTexture2D * CCTextureCache::addImage(const char * path, bool is_document, std:
     // Split up directory and filename
     // MUTEX:
     // Needed since addImageAsync calls this method from a different thread
-    
+  
     //pthread_mutex_lock(m_pDictLock);
 
     std::string pathKey = path;
-
+		
 		if(is_document)
 			pathKey = document_path+path;
 		else

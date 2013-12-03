@@ -86,6 +86,7 @@ public:
     * Otherwise it will return a reference of a previously loaded image.
     * Supported image extensions: .png, .bmp, .tiff, .jpeg, .pvr, .gif
     */
+	CCTexture2D * addImage(const char * path, bool relativePath); // by ksoo
     CCTexture2D* addImage(const char* fileimage);
 		CCTexture2D* addImage(const char* fileimage, bool is_document, std::string document_path);
 
