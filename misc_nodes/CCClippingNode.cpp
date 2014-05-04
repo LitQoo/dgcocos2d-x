@@ -257,7 +257,7 @@ void CCClippingNode::visit()
     
     // draw a fullscreen solid rectangle to clear the stencil buffer
     //ccDrawSolidRect(CCPointZero, ccpFromSize([[CCDirector sharedDirector] winSize]), ccc4f(1, 1, 1, 1));
-	
+	glClear(GL_STENCIL_BUFFER_BIT);
 	if(is_YH)
 		ccDrawSolidRect(rect_YH.origin, ccpFromSize(rect_YH.size), ccc4f(1, 1, 1, 1));
 	else
