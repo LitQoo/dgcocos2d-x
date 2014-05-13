@@ -380,6 +380,7 @@ GLfloat CCClippingNode::getAlphaThreshold() const
 	return m_fAlphaThreshold;
 }
 
+
 void CCClippingNode::setAlphaThreshold(GLfloat fAlphaThreshold)
 {
 	m_fAlphaThreshold = fAlphaThreshold;

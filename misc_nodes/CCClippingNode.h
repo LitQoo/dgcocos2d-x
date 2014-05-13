@@ -118,4 +118,5 @@ protected:
 
 NS_CC_END
 
+
 #endif // __MISCNODE_CCCLIPPING_NODE_H__
