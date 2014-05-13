@@ -395,12 +395,4 @@ void CCClippingNode::setInverted(bool bInverted)
 	m_bInverted = bInverted;
 }
 
-void CCClippingNode::setRectYH(CCRect t_rect)
-{
-	is_YH = true;
-	rect_YH = t_rect; // origin -> screen left bottom, size = CCDirector::sharedDirector()->getWinSize() * changed_scale
-}
 NS_CC_END
-
-
-
