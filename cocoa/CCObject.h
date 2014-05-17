@@ -26,7 +26,6 @@ THE SOFTWARE.
 #define __CCOBJECT_H__
 
 #include "CCDataVisitor.h"
-
 #ifdef EMSCRIPTEN
 #include <GLES2/gl2.h>
 #endif // EMSCRIPTEN
@@ -56,11 +55,15 @@ public:
     unsigned int        m_uID;
     // Lua reference id
     int                 m_nLuaID;
+	
+	
 protected:
     // count of references
     unsigned int        m_uReference;
     // count of autorelease
     unsigned int        m_uAutoReleaseCount;
+	
+	std::string			m_stringData;	// add by HS
 public:
     CCObject(void);
     virtual ~CCObject(void);
@@ -78,6 +81,14 @@ public:
     virtual void update(float dt) {CC_UNUSED_PARAM(dt);};
     
     friend class CCAutoreleasePool;
+	
+	std::string getStringData(){
+		return m_stringData;
+	}
+	
+	void setStringData(std::string strData){
+		m_stringData=strData;
+	}
 };
 
 
