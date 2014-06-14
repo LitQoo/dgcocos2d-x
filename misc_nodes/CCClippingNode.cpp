@@ -53,6 +53,7 @@ CCClippingNode::CCClippingNode()
 : m_pStencil(NULL)
 , m_fAlphaThreshold(0.0f)
 , m_bInverted(false)
+, is_YH(false)
 {}
 
 CCClippingNode::~CCClippingNode()
@@ -140,6 +141,12 @@ void CCClippingNode::onExit()
 {
 	m_pStencil->onExit();
 	CCNode::onExit();
+}
+
+void CCClippingNode::setRectYH(CCRect t_rect)
+{
+	is_YH = true;
+	rect_YH = t_rect;
 }
 
 void CCClippingNode::visit()
@@ -257,7 +264,10 @@ void CCClippingNode::visit()
 	
 	// draw a fullscreen solid rectangle to clear the stencil buffer
 	//ccDrawSolidRect(CCPointZero, ccpFromSize([[CCDirector sharedDirector] winSize]), ccc4f(1, 1, 1, 1));
-	ccDrawSolidRect(CCPointZero, ccpFromSize(CCDirector::sharedDirector()->getWinSize()), ccc4f(1, 1, 1, 1));
+	if(is_YH)
+		ccDrawSolidRect(rect_YH.origin, ccpFromSize(rect_YH.size), ccc4f(1, 1, 1, 1));
+	else
+		ccDrawSolidRect(CCPointZero, ccpFromSize(CCDirector::sharedDirector()->getWinSize()), ccc4f(1, 1, 1, 1));
 	
 	///////////////////////////////////
 	// DRAW CLIPPING STENCIL
