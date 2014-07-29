@@ -178,7 +178,7 @@ static CGSize _calculateStringSize(NSString *str, id font, CGSize *constrainSize
     for (NSString *s in listItems)
     {
         CGSize tmp = [s sizeWithFont:font constrainedToSize:textRect];
-        
+			tmp.height *= 1.1f;
         if (tmp.width > dim.width)
         {
            dim.width = tmp.width; 
