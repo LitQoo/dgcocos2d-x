@@ -28,7 +28,7 @@ import javax.microedition.khronos.opengles.GL10;
 
 import android.opengl.GLSurfaceView;
 
-//import com.kamcord.android.Kamcord;
+import com.kamcord.android.Kamcord;
 
 //import com.kamcord.android.Kamcord;
 
@@ -99,11 +99,11 @@ public class Cocos2dxRenderer implements GLSurfaceView.Renderer {
 
 		// should render a frame when onDrawFrame() is called or there is a
 		// "ghost"
-//		Kamcord.beginDraw();
+		Kamcord.beginDraw();
 
 		Cocos2dxRenderer.nativeRender();
 
-//	    Kamcord.endDraw();
+	    Kamcord.endDraw();
 		/*
 		// fps controlling
 		if (interval < Cocos2dxRenderer.sAnimationInterval) {
