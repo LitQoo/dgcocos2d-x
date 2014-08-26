@@ -52,6 +52,7 @@ typedef struct _AsyncStruct
     std::string            filename;
     CCObject    *target;
     SEL_CallFuncO        selector;
+	bool encrypted;
 } AsyncStruct;
 
 typedef struct _ImageInfo
@@ -105,7 +106,7 @@ static CCImage::EImageFormat computeImageFormatType(string& filename)
     return ret;
 }
 
-static void* loadImage(void* data)
+static void* loadEncryptedImage(void* data)
 {
     AsyncStruct *pAsyncStruct = NULL;
 
@@ -149,7 +150,7 @@ static void* loadImage(void* data)
         
         // generate image            
         CCImage *pImage = new CCImage();
-        if (pImage && !pImage->initWithImageFileThreadSafe(filename, imageType))
+        if (pImage && !pImage->initWithEncryptedImageFileFullPath(filename, imageType))
         {
             CC_SAFE_RELEASE(pImage);
             CCLOG("can not load %s", filename);
@@ -182,6 +183,85 @@ static void* loadImage(void* data)
     }
     
     return 0;
+}
+static void* loadImage(void* data)
+{
+	AsyncStruct *pAsyncStruct = NULL;
+	
+	while (true)
+	{
+		// create autorelease pool for iOS
+		CCThread thread;
+		thread.createAutoreleasePool();
+		
+		std::queue<AsyncStruct*> *pQueue = s_pAsyncStructQueue;
+		pthread_mutex_lock(&s_asyncStructQueueMutex);// get async struct from queue
+		if (pQueue->empty())
+		{
+			pthread_mutex_unlock(&s_asyncStructQueueMutex);
+			if (need_quit) {
+				break;
+			}
+			else {
+				pthread_cond_wait(&s_SleepCondition, &s_SleepMutex);
+				continue;
+			}
+		}
+		else
+		{
+			pAsyncStruct = pQueue->front();
+			pQueue->pop();
+			pthread_mutex_unlock(&s_asyncStructQueueMutex);
+		}
+		
+		const char *filename = pAsyncStruct->filename.c_str();
+		
+		// compute image type
+		CCImage::EImageFormat imageType = computeImageFormatType(pAsyncStruct->filename);
+		if (imageType == CCImage::kFmtUnKnown)
+		{
+			CCLOG("unsupported format %s",filename);
+			delete pAsyncStruct;
+			
+			continue;
+		}
+		
+		// generate image
+		CCImage *pImage = new CCImage();
+		if (pImage &&
+				pAsyncStruct->encrypted ? !pImage->initWithEncryptedImageFileFullPath(filename, imageType) : !pImage->initWithImageFileThreadSafe(filename, imageType))
+		{
+			CC_SAFE_RELEASE(pImage);
+			CCLOG("can not load %s", filename);
+			continue;
+		}
+		
+		// generate image info
+		ImageInfo *pImageInfo = new ImageInfo();
+		pImageInfo->asyncStruct = pAsyncStruct;
+		pImageInfo->image = pImage;
+		pImageInfo->imageType = imageType;
+		
+		// put the image info into the queue
+		pthread_mutex_lock(&s_ImageInfoMutex);
+		s_pImageQueue->push(pImageInfo);
+		pthread_mutex_unlock(&s_ImageInfoMutex);
+	}
+	
+	if( s_pAsyncStructQueue != NULL )
+	{
+		delete s_pAsyncStructQueue;
+		s_pAsyncStructQueue = NULL;
+		delete s_pImageQueue;
+		s_pImageQueue = NULL;
+		
+		pthread_mutex_destroy(&s_asyncStructQueueMutex);
+		pthread_mutex_destroy(&s_ImageInfoMutex);
+		pthread_mutex_destroy(&s_SleepMutex);
+		pthread_cond_destroy(&s_SleepCondition);
+	}
+	
+	return 0;
 }
 
 // implementation CCTextureCache
@@ -241,7 +321,8 @@ void CCTextureCache::addImageAsync(const char *path, CCObject *target, SEL_CallF
 	addImageAsync(path, target, selector, false, "");
 }
 
-void CCTextureCache::addImageAsync(const char *path, CCObject *target, SEL_CallFuncO selector, bool is_document, std::string document_path)
+void CCTextureCache::addImageAsync(const char *path, CCObject *target, SEL_CallFuncO selector, bool is_document, std::string document_path,
+																	 bool encrypted /* = false */)
 {
 #ifdef EMSCRIPTEN
     CCLOGWARN("Cannot load image %s asynchronously in Emscripten builds.", path);
@@ -272,7 +353,10 @@ void CCTextureCache::addImageAsync(const char *path, CCObject *target, SEL_CallF
         
         return;
     }
-
+		else
+		{
+			CCLOG("ZZ %s", pathKey.c_str());
+		}
     // lazy init
     if (s_pAsyncStructQueue == NULL)
     {             
@@ -283,7 +367,11 @@ void CCTextureCache::addImageAsync(const char *path, CCObject *target, SEL_CallF
         pthread_mutex_init(&s_ImageInfoMutex, NULL);
         pthread_mutex_init(&s_SleepMutex, NULL);
         pthread_cond_init(&s_SleepCondition, NULL);
-        pthread_create(&s_loadingThread, NULL, loadImage, NULL);
+			pthread_create(&s_loadingThread, NULL, loadImage, NULL);
+//			if(encrypted)
+//        pthread_create(&s_loadingThread, NULL, loadEncryptedImage, NULL);
+//			else
+				
 
         need_quit = false;
     }
@@ -305,6 +393,7 @@ void CCTextureCache::addImageAsync(const char *path, CCObject *target, SEL_CallF
     data->filename = fullpath.c_str();
     data->target = target;
     data->selector = selector;
+	data->encrypted = encrypted;
 
     // add async struct into queue
     pthread_mutex_lock(&s_asyncStructQueueMutex);
@@ -336,6 +425,7 @@ void CCTextureCache::addImageAsyncCallBack(float dt)
         CCObject *target = pAsyncStruct->target;
         SEL_CallFuncO selector = pAsyncStruct->selector;
         const char* filename = pAsyncStruct->filename.c_str();
+			
 
         // generate texture in render thread
         CCTexture2D *texture = new CCTexture2D();
@@ -358,7 +448,10 @@ void CCTextureCache::addImageAsyncCallBack(float dt)
         {
             (target->*selector)(texture);
             target->release();
-        }        
+        }
+			else
+			{
+			}
 
         pImage->release();
         delete pAsyncStruct;
@@ -476,7 +569,7 @@ CCTexture2D * CCTextureCache::addImage(const char * path, bool relativePath) // 
 
 
 
-CCTexture2D * CCTextureCache::addImage(const char * path, bool is_document, std::string document_path)
+CCTexture2D * CCTextureCache::addImage(const char * path, bool is_document, std::string document_path, bool encrypted /*= false*/)
 {
     CCAssert(path != NULL, "TextureCache: fileimage MUST not be NULL");
 
@@ -494,6 +587,12 @@ CCTexture2D * CCTextureCache::addImage(const char * path, bool is_document, std:
 			pathKey = document_path+path;
 		else
 			pathKey = CCFileUtils::sharedFileUtils()->fullPathForFilename(pathKey.c_str());
+		
+	
+//	if(computeImageFormatType(pathKey) == CCImage::EImageFormat::kFmtPng && is_document)
+//	{
+//		encrypted = true;
+//	}
     if (pathKey.size() == 0)
     {
         return NULL;
@@ -543,7 +642,16 @@ CCTexture2D * CCTextureCache::addImage(const char * path, bool is_document, std:
                 pImage = new CCImage();
                 CC_BREAK_IF(NULL == pImage);
 
-                bool bRet = pImage->initWithImageFile(fullpath.c_str(), eImageFormat);
+							bool bRet;
+							if(encrypted == false)
+							{
+								bRet = pImage->initWithImageFile(fullpath.c_str(), eImageFormat);
+							}
+							
+							else
+							{
+								bRet = pImage->initWithEncryptedImageFile(fullpath.c_str(), eImageFormat);
+							}
                 CC_BREAK_IF(!bRet);
 
                 texture = new CCTexture2D();

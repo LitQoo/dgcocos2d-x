@@ -88,7 +88,7 @@ public:
     */
 	CCTexture2D * addImage(const char * path, bool relativePath); // by ksoo
     CCTexture2D* addImage(const char* fileimage);
-		CCTexture2D* addImage(const char* fileimage, bool is_document, std::string document_path);
+		CCTexture2D* addImage(const char* fileimage, bool is_document, std::string document_path, bool encrypted = false);
 
     /* Returns a Texture2D object given a file image
     * If the file image was not previously loaded, it will create a new CCTexture2D object and it will return it.
@@ -99,7 +99,7 @@ public:
     */
     
     void addImageAsync(const char *path, CCObject *target, SEL_CallFuncO selector);
-	void addImageAsync(const char *path, CCObject *target, SEL_CallFuncO selector, bool is_document, std::string document_path);
+	void addImageAsync(const char *path, CCObject *target, SEL_CallFuncO selector, bool is_document, std::string document_path, bool encrypted = false);
 
     /* Returns a Texture2D object given an CGImageRef image
     * If the image was not previously loaded, it will create a new CCTexture2D object and it will return it.

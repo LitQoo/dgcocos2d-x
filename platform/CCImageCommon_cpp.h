@@ -95,6 +95,48 @@ CCImage::~CCImage()
     CC_SAFE_DELETE_ARRAY(m_pData);
 }
 
+bool CCImage::initWithEncryptedImageFileFullPath(const char * fullPath, EImageFormat eImgFmt/* = eFmtPng*/)
+{
+    bool bRet = false;
+    unsigned long nSize = 0;
+
+    unsigned char* pBuffer = CCFileUtils::sharedFileUtils()->getFileData(fullPath, "rb", &nSize);
+    if (pBuffer != NULL && nSize > 0)
+    {
+        unsigned char* pBuf = pBuffer;
+        while(pBuf != &pBuffer[nSize])
+        {
+            *pBuf = (*pBuf)^0x34;
+            pBuf++;
+        }
+        bRet = initWithImageData(pBuffer, nSize, eImgFmt);
+    }
+    CC_SAFE_DELETE_ARRAY(pBuffer);
+
+    return bRet;    
+}
+
+bool CCImage::initWithEncryptedImageFile(const char * strPath, EImageFormat eImgFmt/* = eFmtPng*/)
+{
+    bool bRet = false;
+    unsigned long nSize = 0;
+    std::string fullPath = CCFileUtils::sharedFileUtils()->fullPathForFilename(strPath);
+    unsigned char* pBuffer = CCFileUtils::sharedFileUtils()->getFileData(fullPath.c_str(), "rb", &nSize);
+    if (pBuffer != NULL && nSize > 0)
+    {
+        unsigned char* pBuf = pBuffer;
+        while(pBuf != &pBuffer[nSize])
+        {
+            *pBuf = (*pBuf)^0x34;
+            pBuf++;
+        }
+        bRet = initWithImageData(pBuffer, nSize, eImgFmt);
+    }
+    CC_SAFE_DELETE_ARRAY(pBuffer);
+
+    return bRet;    
+}
+
 bool CCImage::initWithImageFile(const char * strPath, EImageFormat eImgFmt/* = eFmtPng*/)
 {
     bool bRet = false;
@@ -124,6 +166,7 @@ bool CCImage::initWithImageFile(const char * strPath, EImageFormat eImgFmt/* = e
     unsigned char* pBuffer = CCFileUtils::sharedFileUtils()->getFileData(fullPath.c_str(), "rb", &nSize);
     if (pBuffer != NULL && nSize > 0)
     {
+
         bRet = initWithImageData(pBuffer, nSize, eImgFmt);
     }
     CC_SAFE_DELETE_ARRAY(pBuffer);

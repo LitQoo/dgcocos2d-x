@@ -69,6 +69,9 @@ public:
     @param imageType the type of image, currently only supporting two types.
     @return  true if loaded correctly.
     */
+	bool initWithEncryptedImageFileFullPath(const char * fullPath, EImageFormat eImgFmt = kFmtPng/* = eFmtPng*/);
+
+	bool initWithEncryptedImageFile(const char * strPath, EImageFormat eImgFmt/* = eFmtPng*/);
     bool initWithImageFile(const char * strPath, EImageFormat imageType = kFmtPng);
 
     /*
@@ -89,6 +92,9 @@ public:
     @param nWidth, nHeight, nBitsPerComponent are used for kFmtRawData.
     @return true if loaded correctly.
     */
+	
+	
+	
     bool initWithImageData(void * pData, 
                            int nDataLen, 
                            EImageFormat eFmt = kFmtUnKnown,
