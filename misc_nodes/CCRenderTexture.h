@@ -125,6 +125,8 @@ public:
      */
     bool saveToFile(const char *name, tCCImageFormat format);
     
+    bool saveToFileNoAlpha(const char *name, tCCImageFormat format);
+    
     /** Listen "come to background" message, and save render texture.
      It only has effect on Android.
      */
