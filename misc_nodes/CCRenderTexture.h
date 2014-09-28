@@ -60,7 +60,14 @@ class CC_DLL CCRenderTexture : public CCNode
     */
     CC_PROPERTY(CCSprite*, m_pSprite, Sprite)
 public:
+    /**
+     * @js ctor
+     */
     CCRenderTexture();
+    /**
+     * @js NA
+     * @lua NA
+     */
     virtual ~CCRenderTexture();
     
     virtual void visit();
@@ -124,8 +131,6 @@ public:
         Returns YES if the operation is successful.
      */
     bool saveToFile(const char *name, tCCImageFormat format);
-    
-    bool saveToFileNoAlpha(const char *name, tCCImageFormat format);
     
     /** Listen "come to background" message, and save render texture.
      It only has effect on Android.

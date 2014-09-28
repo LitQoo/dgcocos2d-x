@@ -17,7 +17,6 @@ CCApplication * CCApplication::sm_pSharedApplication = 0;
 
 CCApplication::CCApplication()
 {
-    CCLog("CCAPP");
     CCAssert(! sm_pSharedApplication, "");
     sm_pSharedApplication = this;
 }
@@ -91,6 +90,10 @@ ccLanguageType CCApplication::getCurrentLanguage()
     else if (0 == strcmp("es", pLanguageName))
     {
         ret = kLanguageSpanish;
+    }
+    else if (0 == strcmp("nl", pLanguageName))
+    {
+        ret = kLanguageDutch;
     }
     else if (0 == strcmp("ru", pLanguageName))
     {

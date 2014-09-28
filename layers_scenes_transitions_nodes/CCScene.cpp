@@ -27,7 +27,7 @@ THE SOFTWARE.
 #include "CCScene.h"
 #include "support/CCPointExtension.h"
 #include "CCDirector.h"
-#include "CCEGLView.h"
+
 NS_CC_BEGIN
 
 CCScene::CCScene()
@@ -51,15 +51,6 @@ bool CCScene::init()
          // success
          bRet = true;
      } while (0);
-	CCSize bb = CCDirector::sharedDirector()->getVisibleSize();
-	CCSize a = CCEGLView::sharedOpenGLView()->getViewPortRect().size;
-	CCSize cc = CCDirector::sharedDirector()->getWinSizeInPixels();
-	CCSize dd = CCEGLView::sharedOpenGLView()->getFrameSize();
-	if(a.height != 0)
-	{
-		setScale(MIN(dd.height / a.height, dd.width / a.width));
-	}
-
      return bRet;
 }
 

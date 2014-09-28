@@ -1,5 +1,6 @@
 /****************************************************************************
 Copyright (c) 2010 cocos2d-x.org
+Copyright (c) Microsoft Open Technologies, Inc.
 
 http://www.cocos2d-x.org
 
@@ -33,6 +34,15 @@ THE SOFTWARE.
 #include "png.h"
 #include "jpeglib.h"
 #include "tiffio.h"
+
+#if (CC_TARGET_PLATFORM == CC_PLATFORM_WINRT) || (CC_TARGET_PLATFORM == CC_PLATFORM_WP8)
+#include "CCFreeTypeFont.h"
+#endif
+
+#if (CC_TARGET_PLATFORM == CC_PLATFORM_ANDROID)
+#include "platform/android/CCFileUtilsAndroid.h"
+#endif
+
 #include <string>
 #include <ctype.h>
 
@@ -87,54 +97,17 @@ CCImage::CCImage()
 , m_bHasAlpha(false)
 , m_bPreMulti(false)
 {
-
+#if (CC_TARGET_PLATFORM == CC_PLATFORM_WINRT) || (CC_TARGET_PLATFORM == CC_PLATFORM_WP8)
+    m_ft = nullptr;
+#endif
 }
 
 CCImage::~CCImage()
 {
     CC_SAFE_DELETE_ARRAY(m_pData);
-}
-
-bool CCImage::initWithEncryptedImageFileFullPath(const char * fullPath, EImageFormat eImgFmt/* = eFmtPng*/)
-{
-    bool bRet = false;
-    unsigned long nSize = 0;
-
-    unsigned char* pBuffer = CCFileUtils::sharedFileUtils()->getFileData(fullPath, "rb", &nSize);
-    if (pBuffer != NULL && nSize > 0)
-    {
-        unsigned char* pBuf = pBuffer;
-        while(pBuf != &pBuffer[nSize])
-        {
-            *pBuf = (*pBuf)^0x34;
-            pBuf++;
-        }
-        bRet = initWithImageData(pBuffer, nSize, eImgFmt);
-    }
-    CC_SAFE_DELETE_ARRAY(pBuffer);
-
-    return bRet;    
-}
-
-bool CCImage::initWithEncryptedImageFile(const char * strPath, EImageFormat eImgFmt/* = eFmtPng*/)
-{
-    bool bRet = false;
-    unsigned long nSize = 0;
-    std::string fullPath = CCFileUtils::sharedFileUtils()->fullPathForFilename(strPath);
-    unsigned char* pBuffer = CCFileUtils::sharedFileUtils()->getFileData(fullPath.c_str(), "rb", &nSize);
-    if (pBuffer != NULL && nSize > 0)
-    {
-        unsigned char* pBuf = pBuffer;
-        while(pBuf != &pBuffer[nSize])
-        {
-            *pBuf = (*pBuf)^0x34;
-            pBuf++;
-        }
-        bRet = initWithImageData(pBuffer, nSize, eImgFmt);
-    }
-    CC_SAFE_DELETE_ARRAY(pBuffer);
-
-    return bRet;    
+#if (CC_TARGET_PLATFORM == CC_PLATFORM_WINRT) || (CC_TARGET_PLATFORM == CC_PLATFORM_WP8)
+    CC_SAFE_DELETE(m_ft);
+#endif
 }
 
 bool CCImage::initWithImageFile(const char * strPath, EImageFormat eImgFmt/* = eFmtPng*/)
@@ -166,7 +139,6 @@ bool CCImage::initWithImageFile(const char * strPath, EImageFormat eImgFmt/* = e
     unsigned char* pBuffer = CCFileUtils::sharedFileUtils()->getFileData(fullPath.c_str(), "rb", &nSize);
     if (pBuffer != NULL && nSize > 0)
     {
-
         bRet = initWithImageData(pBuffer, nSize, eImgFmt);
     }
     CC_SAFE_DELETE_ARRAY(pBuffer);
@@ -179,7 +151,12 @@ bool CCImage::initWithImageFileThreadSafe(const char *fullpath, EImageFormat ima
 {
     bool bRet = false;
     unsigned long nSize = 0;
+#if (CC_TARGET_PLATFORM == CC_PLATFORM_ANDROID)
+    CCFileUtilsAndroid *fileUitls = (CCFileUtilsAndroid*)CCFileUtils::sharedFileUtils();
+    unsigned char *pBuffer = fileUitls->getFileDataForAsync(fullpath, "rb", &nSize);
+#else
     unsigned char *pBuffer = CCFileUtils::sharedFileUtils()->getFileData(fullpath, "rb", &nSize);
+#endif
     if (pBuffer != NULL && nSize > 0)
     {
         bRet = initWithImageData(pBuffer, nSize, imageType);
@@ -215,11 +192,13 @@ bool CCImage::initWithImageData(void * pData,
             bRet = _initWithTiffData(pData, nDataLen);
             break;
         }
-        else if (kFmtWebp == eFmt)
+#if (CC_TARGET_PLATFORM != CC_PLATFORM_WINRT) && (CC_TARGET_PLATFORM != CC_PLATFORM_WP8)
+       else if (kFmtWebp == eFmt)
         {
             bRet = _initWithWebpData(pData, nDataLen);
             break;
         }
+#endif
         else if (kFmtRawData == eFmt)
         {
             bRet = _initWithRawData(pData, nDataLen, nWidth, nHeight, nBitsPerComponent, false);

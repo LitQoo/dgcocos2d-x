@@ -469,7 +469,7 @@ void CCScheduler::scheduleUpdateForTarget(CCObject *pTarget, int nPriority, bool
         CCAssert(pHashElement->entry->markedForDeletion,"");
 #endif
         // TODO: check if priority has changed!
-
+        pHashElement->entry->paused = bPaused;
         pHashElement->entry->markedForDeletion = false;
         return;
     }
@@ -828,7 +828,7 @@ void CCScheduler::update(float dt)
         if (! m_pCurrentTarget->paused)
         {
             // The 'timers' array may change while inside this loop
-            for (elt->timerIndex = 0; elt && elt->timers && elt->timerIndex < elt->timers->num; ++(elt->timerIndex)) // yh fixed // for (elt->timerIndex = 0; elt->timerIndex < elt->timers->num; ++(elt->timerIndex))
+            for (elt->timerIndex = 0; elt->timerIndex < elt->timers->num; ++(elt->timerIndex))
             {
                 elt->currentTimer = (CCTimer*)(elt->timers->arr[elt->timerIndex]);
                 elt->currentTimerSalvaged = false;
