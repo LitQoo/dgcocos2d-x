@@ -26,6 +26,7 @@ THE SOFTWARE.
 #include "platform/CCCommon.h"
 #include "jni/Java_org_cocos2dx_lib_Cocos2dxHelper.h"
 #include <cstdlib>
+#include <cstdio>
 using namespace std;
 
 NS_CC_BEGIN
