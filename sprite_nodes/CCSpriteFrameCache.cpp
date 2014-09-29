@@ -230,16 +230,20 @@ void CCSpriteFrameCache::addSpriteFramesWithFile(const char* plist, const char* 
         CCLOG("cocos2d: CCSpriteFrameCache: couldn't load texture file. File not found %s", textureFileName);
     }
 }
-
-void CCSpriteFrameCache::addSpriteFramesWithFile(const char *pszPlist)
+// by ksoo
+void CCSpriteFrameCache::addSpriteFramesWithFile(const char *pszPlist, bool relativePath)
 {
     CCAssert(pszPlist, "plist filename should not be NULL");
-
+    
     if (m_pLoadedFileNames->find(pszPlist) == m_pLoadedFileNames->end())
     {
-        std::string fullPath = CCFileUtils::sharedFileUtils()->fullPathForFilename(pszPlist);
+        std::string fullPath;
+        if(relativePath == true)
+            fullPath = CCFileUtils::sharedFileUtils()->fullPathForFilename(pszPlist);
+        else
+            fullPath = pszPlist;
         CCDictionary *dict = CCDictionary::createWithContentsOfFileThreadSafe(fullPath.c_str());
-
+        
         string texturePath("");
 
         CCDictionary* metadataDict = (CCDictionary*)dict->objectForKey("metadata");
@@ -248,7 +252,10 @@ void CCSpriteFrameCache::addSpriteFramesWithFile(const char *pszPlist)
             // try to read  texture file name from meta data
             texturePath = metadataDict->valueForKey("textureFileName")->getCString();
         }
-
+        if(relativePath == true)
+        {
+            
+        }
         if (! texturePath.empty())
         {
             // build texture path relative to plist file
@@ -258,18 +265,29 @@ void CCSpriteFrameCache::addSpriteFramesWithFile(const char *pszPlist)
         {
             // build texture path by replacing file extension
             texturePath = pszPlist;
-
+            
             // remove .xxx
-            size_t startPos = texturePath.find_last_of("."); 
+            size_t startPos = texturePath.find_last_of(".");
             texturePath = texturePath.erase(startPos);
-
+            
             // append .png
             texturePath = texturePath.append(".png");
-
+            
             CCLOG("cocos2d: CCSpriteFrameCache: Trying to use file %s as texture", texturePath.c_str());
         }
+//      CCTexture2D *pTexture = CCTextureCache::sharedTextureCache()->addImage(texturePath.c_str());
+        CCTexture2D *pTexture = 0;
+        if(relativePath == true)
+        {
+            pTexture = CCTextureCache::sharedTextureCache()->addImage(texturePath.c_str());
+        }
+        else
+        {
+            //texturePath 이미 절대경로로 되어있다.
+            pTexture = CCTextureCache::sharedTextureCache()->addImage(texturePath.c_str(), false);
+        }
+        
 
-        CCTexture2D *pTexture = CCTextureCache::sharedTextureCache()->addImage(texturePath.c_str());
 
         if (pTexture)
         {
@@ -280,9 +298,13 @@ void CCSpriteFrameCache::addSpriteFramesWithFile(const char *pszPlist)
         {
             CCLOG("cocos2d: CCSpriteFrameCache: Couldn't load texture");
         }
-
+        
         dict->release();
     }
+}
+void CCSpriteFrameCache::addSpriteFramesWithFile(const char *pszPlist)
+{
+    addSpriteFramesWithFile(pszPlist, true); // 상대경로 by ksoo
 
 }
 

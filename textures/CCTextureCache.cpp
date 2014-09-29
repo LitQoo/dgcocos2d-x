@@ -61,6 +61,7 @@ typedef struct _AsyncStruct
     std::string            filename;
     CCObject    *target;
     SEL_CallFuncO        selector;
+    bool encrypted;
 } AsyncStruct;
 
 typedef struct _ImageInfo
@@ -150,7 +151,84 @@ static void loadImageData(AsyncStruct *pAsyncStruct)
     s_pImageQueue->push(pImageInfo);
     pthread_mutex_unlock(&s_ImageInfoMutex);   
 }
+static void* loadEncryptedImage(void* data)
+{
+    AsyncStruct *pAsyncStruct = NULL;
 
+    while (true)
+    {
+        // create autorelease pool for iOS
+        CCThread thread;
+        thread.createAutoreleasePool();
+
+        std::queue<AsyncStruct*> *pQueue = s_pAsyncStructQueue;
+        pthread_mutex_lock(&s_asyncStructQueueMutex);// get async struct from queue
+        if (pQueue->empty())
+        {
+            pthread_mutex_unlock(&s_asyncStructQueueMutex);
+            if (need_quit) {
+                break;
+            }
+            else {
+                pthread_cond_wait(&s_SleepCondition, &s_SleepMutex);
+                continue;
+            }
+        }
+        else
+        {
+            pAsyncStruct = pQueue->front();
+            pQueue->pop();
+            pthread_mutex_unlock(&s_asyncStructQueueMutex);
+        }        
+
+        const char *filename = pAsyncStruct->filename.c_str();
+
+        // compute image type
+        CCImage::EImageFormat imageType = computeImageFormatType(pAsyncStruct->filename);
+        if (imageType == CCImage::kFmtUnKnown)
+        {
+            CCLOG("unsupported format %s",filename);
+            delete pAsyncStruct;
+            
+            continue;
+        }
+        
+        // generate image            
+        CCImage *pImage = new CCImage();
+        if (pImage && !pImage->initWithEncryptedImageFileFullPath(filename, imageType))
+        {
+            CC_SAFE_RELEASE(pImage);
+            CCLOG("can not load %s", filename);
+            continue;
+        }
+
+        // generate image info
+        ImageInfo *pImageInfo = new ImageInfo();
+        pImageInfo->asyncStruct = pAsyncStruct;
+        pImageInfo->image = pImage;
+        pImageInfo->imageType = imageType;
+
+        // put the image info into the queue
+        pthread_mutex_lock(&s_ImageInfoMutex);
+        s_pImageQueue->push(pImageInfo);
+        pthread_mutex_unlock(&s_ImageInfoMutex);    
+    }
+    
+    if( s_pAsyncStructQueue != NULL )
+    {
+        delete s_pAsyncStructQueue;
+        s_pAsyncStructQueue = NULL;
+        delete s_pImageQueue;
+        s_pImageQueue = NULL;
+
+        pthread_mutex_destroy(&s_asyncStructQueueMutex);
+        pthread_mutex_destroy(&s_ImageInfoMutex);
+        pthread_mutex_destroy(&s_SleepMutex);
+        pthread_cond_destroy(&s_SleepCondition);
+    }
+    
+    return 0;
+}
 static void* loadImage(void* data)
 {
     AsyncStruct *pAsyncStruct = NULL;
@@ -333,68 +411,11 @@ void CCTextureCache::addImageAsync(const char *path, CCObject *target, SEL_CallF
 #endif
 }
 
-void CCTextureCache::addImageAsyncCallBack(float dt)
-{
-    // the image is generated in loading thread
-    std::queue<ImageInfo*> *imagesQueue = s_pImageQueue;
 
-    pthread_mutex_lock(&s_ImageInfoMutex);
-    if (imagesQueue->empty())
-    {
-        pthread_mutex_unlock(&s_ImageInfoMutex);
-    }
-    else
-    {
-        ImageInfo *pImageInfo = imagesQueue->front();
-        imagesQueue->pop();
-        pthread_mutex_unlock(&s_ImageInfoMutex);
-
-        AsyncStruct *pAsyncStruct = pImageInfo->asyncStruct;
-        CCImage *pImage = pImageInfo->image;
-
-        CCObject *target = pAsyncStruct->target;
-        SEL_CallFuncO selector = pAsyncStruct->selector;
-        const char* filename = pAsyncStruct->filename.c_str();
-
-        // generate texture in render thread
-        CCTexture2D *texture = new CCTexture2D();
-#if 0 //TODO: (CC_TARGET_PLATFORM == CC_PLATFORM_IOS)
-        texture->initWithImage(pImage, kCCResolutioniPhone);
-#else
-        texture->initWithImage(pImage);
-#endif
-
-#if CC_ENABLE_CACHE_TEXTURE_DATA
-       // cache the texture file name
-       VolatileTexture::addImageTexture(texture, filename, pImageInfo->imageType);
-#endif
-
-        // cache the texture
-        m_pTextures->setObject(texture, filename);
-        texture->autorelease();
-
-        if (target && selector)
-        {
-            (target->*selector)(texture);
-            target->release();
-        }        
-
-        pImage->release();
-        delete pAsyncStruct;
-        delete pImageInfo;
-
-        --s_nAsyncRefCount;
-        if (0 == s_nAsyncRefCount)
-        {
-            CCDirector::sharedDirector()->getScheduler()->unscheduleSelector(schedule_selector(CCTextureCache::addImageAsyncCallBack), this);
-        }
-    }
-}
-
-CCTexture2D * CCTextureCache::addImage(const char * path)
+CCTexture2D * CCTextureCache::addImage(const char * path, bool relativePath) // by ksoo
 {
     CCAssert(path != NULL, "TextureCache: fileimage MUST not be NULL");
-
+    
     CCTexture2D * texture = NULL;
     CCImage* pImage = NULL;
     // Split up directory and filename
@@ -402,18 +423,21 @@ CCTexture2D * CCTextureCache::addImage(const char * path)
     // Needed since addImageAsync calls this method from a different thread
     
     //pthread_mutex_lock(m_pDictLock);
-
+    
     std::string pathKey = path;
-
-    pathKey = CCFileUtils::sharedFileUtils()->fullPathForFilename(pathKey.c_str());
+    
+    if(relativePath)
+        pathKey = CCFileUtils::sharedFileUtils()->fullPathForFilename(pathKey.c_str());
+    else
+        pathKey = path;
     if (pathKey.size() == 0)
     {
         return NULL;
     }
     texture = (CCTexture2D*)m_pTextures->objectForKey(pathKey.c_str());
-
+    
     std::string fullpath = pathKey; // (CCFileUtils::sharedFileUtils()->fullPathFromRelativePath(path));
-    if (! texture) 
+    if (! texture)
     {
         std::string lowerCase(pathKey);
         for (unsigned int i = 0; i < lowerCase.length(); ++i)
@@ -421,7 +445,7 @@ CCTexture2D * CCTextureCache::addImage(const char * path)
             lowerCase[i] = tolower(lowerCase[i]);
         }
         // all images are handled by UIImage except PVR extension that is handled by our own handler
-        do 
+        do
         {
             if (std::string::npos != lowerCase.find(".pvr"))
             {
@@ -454,14 +478,14 @@ CCTexture2D * CCTextureCache::addImage(const char * path)
                 
                 pImage = new CCImage();
                 CC_BREAK_IF(NULL == pImage);
-
+                
                 bool bRet = pImage->initWithImageFile(fullpath.c_str(), eImageFormat);
                 CC_BREAK_IF(!bRet);
-
+                
                 texture = new CCTexture2D();
                 
                 if( texture &&
-                    texture->initWithImage(pImage) )
+                     texture->initWithImage(pImage) )
                 {
 #if CC_ENABLE_CACHE_TEXTURE_DATA
                     // cache the texture file name
@@ -477,11 +501,270 @@ CCTexture2D * CCTextureCache::addImage(const char * path)
             }
         } while (0);
     }
-
+    
     CC_SAFE_RELEASE(pImage);
-
+    
     //pthread_mutex_unlock(m_pDictLock);
     return texture;
+}
+CCTexture2D * CCTextureCache::addImage(const char * path, bool is_document, std::string document_path, bool encrypted /*= false*/)
+{
+	CCAssert(path != NULL, "TextureCache: fileimage MUST not be NULL");
+	
+	CCTexture2D * texture = NULL;
+	CCImage* pImage = NULL;
+	// Split up directory and filename
+	// MUTEX:
+	// Needed since addImageAsync calls this method from a different thread
+  
+	//pthread_mutex_lock(m_pDictLock);
+	
+	std::string pathKey = path;
+	
+	if(is_document)
+		pathKey = document_path+path;
+	else
+		pathKey = CCFileUtils::sharedFileUtils()->fullPathForFilename(pathKey.c_str());
+	
+	
+	//	if(computeImageFormatType(pathKey) == CCImage::EImageFormat::kFmtPng && is_document)
+	//	{
+	//		encrypted = true;
+	//	}
+	if (pathKey.size() == 0)
+	{
+		return NULL;
+	}
+	texture = (CCTexture2D*)m_pTextures->objectForKey(pathKey.c_str());
+	
+	std::string fullpath = pathKey; // (CCFileUtils::sharedFileUtils()->fullPathFromRelativePath(path));
+	if (! texture)
+	{
+		std::string lowerCase(pathKey);
+		for (unsigned int i = 0; i < lowerCase.length(); ++i)
+		{
+			lowerCase[i] = tolower(lowerCase[i]);
+		}
+		// all images are handled by UIImage except PVR extension that is handled by our own handler
+		do
+		{
+			if (std::string::npos != lowerCase.find(".pvr"))
+			{
+				texture = this->addPVRImage(fullpath.c_str());
+			}
+			else if (std::string::npos != lowerCase.find(".pkm"))
+			{
+				// ETC1 file format, only supportted on Android
+				texture = this->addETCImage(fullpath.c_str());
+			}
+			else
+			{
+				CCImage::EImageFormat eImageFormat = CCImage::kFmtUnKnown;
+				if (std::string::npos != lowerCase.find(".png"))
+				{
+					eImageFormat = CCImage::kFmtPng;
+				}
+				else if (std::string::npos != lowerCase.find(".jpg") || std::string::npos != lowerCase.find(".jpeg"))
+				{
+					eImageFormat = CCImage::kFmtJpg;
+				}
+				else if (std::string::npos != lowerCase.find(".tif") || std::string::npos != lowerCase.find(".tiff"))
+				{
+					eImageFormat = CCImage::kFmtTiff;
+				}
+				else if (std::string::npos != lowerCase.find(".webp"))
+				{
+					eImageFormat = CCImage::kFmtWebp;
+				}
+				
+				pImage = new CCImage();
+				CC_BREAK_IF(NULL == pImage);
+				
+				bool bRet;
+				if(encrypted == false)
+				{
+					bRet = pImage->initWithImageFile(fullpath.c_str(), eImageFormat);
+				}
+				
+				else
+				{
+					bRet = pImage->initWithEncryptedImageFile(fullpath.c_str(), eImageFormat);
+				}
+				CC_BREAK_IF(!bRet);
+				
+				texture = new CCTexture2D();
+				
+				if( texture &&
+					 texture->initWithImage(pImage) )
+				{
+#if CC_ENABLE_CACHE_TEXTURE_DATA
+					// cache the texture file name
+					VolatileTexture::addImageTexture(texture, fullpath.c_str(), eImageFormat);
+#endif
+					m_pTextures->setObject(texture, pathKey.c_str());
+					texture->release();
+				}
+				else
+				{
+					CCLOG("cocos2d: Couldn't create texture for file:%s in CCTextureCache", path);
+				}
+			}
+		} while (0);
+	}
+	
+	CC_SAFE_RELEASE(pImage);
+	
+	//pthread_mutex_unlock(m_pDictLock);
+	return texture;
+}
+
+void CCTextureCache::addImageAsync(const char *path, CCObject *target, SEL_CallFuncO selector, bool is_document, std::string document_path,
+                                                                     bool encrypted /* = false */)
+{
+#ifdef EMSCRIPTEN
+    CCLOGWARN("Cannot load image %s asynchronously in Emscripten builds.", path);
+    return;
+#endif // EMSCRIPTEN
+
+    CCAssert(path != NULL, "TextureCache: fileimage MUST not be NULL");
+
+    CCTexture2D *texture = NULL;
+
+    // optimization
+
+    std::string pathKey = path;
+
+        if(is_document)
+            pathKey = document_path+path;
+        else
+            pathKey = CCFileUtils::sharedFileUtils()->fullPathForFilename(pathKey.c_str());
+    texture = (CCTexture2D*)m_pTextures->objectForKey(pathKey.c_str());
+
+    std::string fullpath = pathKey;
+    if (texture != NULL)
+    {
+        if (target && selector)
+        {
+            (target->*selector)(texture);
+        }
+        
+        return;
+    }
+        else
+        {
+            CCLOG("ZZ %s", pathKey.c_str());
+        }
+    // lazy init
+    if (s_pAsyncStructQueue == NULL)
+    {             
+        s_pAsyncStructQueue = new queue<AsyncStruct*>();
+        s_pImageQueue = new queue<ImageInfo*>();        
+        
+        pthread_mutex_init(&s_asyncStructQueueMutex, NULL);
+        pthread_mutex_init(&s_ImageInfoMutex, NULL);
+        pthread_mutex_init(&s_SleepMutex, NULL);
+        pthread_cond_init(&s_SleepCondition, NULL);
+            pthread_create(&s_loadingThread, NULL, loadImage, NULL);
+//          if(encrypted)
+//        pthread_create(&s_loadingThread, NULL, loadEncryptedImage, NULL);
+//          else
+                
+
+        need_quit = false;
+    }
+
+    if (0 == s_nAsyncRefCount)
+    {
+        CCDirector::sharedDirector()->getScheduler()->scheduleSelector(schedule_selector(CCTextureCache::addImageAsyncCallBack), this, 0, false);
+    }
+
+    ++s_nAsyncRefCount;
+
+    if (target)
+    {
+        target->retain();
+    }
+
+    // generate async struct
+    AsyncStruct *data = new AsyncStruct();
+    data->filename = fullpath.c_str();
+    data->target = target;
+    data->selector = selector;
+    data->encrypted = encrypted;
+
+    // add async struct into queue
+    pthread_mutex_lock(&s_asyncStructQueueMutex);
+    s_pAsyncStructQueue->push(data);
+    pthread_mutex_unlock(&s_asyncStructQueueMutex);
+
+    pthread_cond_signal(&s_SleepCondition);
+}
+
+void CCTextureCache::addImageAsyncCallBack(float dt)
+{
+    // the image is generated in loading thread
+    std::queue<ImageInfo*> *imagesQueue = s_pImageQueue;
+
+    pthread_mutex_lock(&s_ImageInfoMutex);
+    if (imagesQueue->empty())
+    {
+        pthread_mutex_unlock(&s_ImageInfoMutex);
+    }
+    else
+    {
+        ImageInfo *pImageInfo = imagesQueue->front();
+        imagesQueue->pop();
+        pthread_mutex_unlock(&s_ImageInfoMutex);
+
+        AsyncStruct *pAsyncStruct = pImageInfo->asyncStruct;
+        CCImage *pImage = pImageInfo->image;
+
+        CCObject *target = pAsyncStruct->target;
+        SEL_CallFuncO selector = pAsyncStruct->selector;
+        const char* filename = pAsyncStruct->filename.c_str();
+            
+
+        // generate texture in render thread
+        CCTexture2D *texture = new CCTexture2D();
+#if 0 //TODO: (CC_TARGET_PLATFORM == CC_PLATFORM_IOS)
+        texture->initWithImage(pImage, kCCResolutioniPhone);
+#else
+        texture->initWithImage(pImage);
+#endif
+
+#if CC_ENABLE_CACHE_TEXTURE_DATA
+       // cache the texture file name
+       VolatileTexture::addImageTexture(texture, filename, pImageInfo->imageType);
+#endif
+
+        // cache the texture
+        m_pTextures->setObject(texture, filename);
+        texture->autorelease();
+
+        if (target && selector)
+        {
+            (target->*selector)(texture);
+            target->release();
+        }
+            else
+            {
+            }
+
+        pImage->release();
+        delete pAsyncStruct;
+        delete pImageInfo;
+
+        --s_nAsyncRefCount;
+        if (0 == s_nAsyncRefCount)
+        {
+            CCDirector::sharedDirector()->getScheduler()->unscheduleSelector(schedule_selector(CCTextureCache::addImageAsyncCallBack), this);
+        }
+    }
+}
+
+CCTexture2D * CCTextureCache::addImage(const char * path)
+{
+    return addImage(path, false, "");
 }
 
 CCTexture2D * CCTextureCache::addPVRImage(const char* path)

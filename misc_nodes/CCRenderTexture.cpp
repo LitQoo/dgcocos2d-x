@@ -615,7 +615,24 @@ void CCRenderTexture::draw()
         end();
 	}
 }
-
+bool CCRenderTexture::saveToFileNoAlpha(const char *fileName, tCCImageFormat format)
+{
+    bool bRet = false;
+    CCAssert(format == kCCImageFormatJPEG || format == kCCImageFormatPNG,
+             "the image can only be saved as JPG or PNG format");
+    
+    CCImage *pImage = newCCImage(true);
+    if (pImage)
+    {
+        std::string fullpath = CCFileUtils::sharedFileUtils()->getWritablePath() + fileName;
+        
+        bRet = pImage->saveToFile(fullpath.c_str(), false);
+    }
+    
+    CC_SAFE_DELETE(pImage);
+    
+    return bRet;
+}
 bool CCRenderTexture::saveToFile(const char *szFilePath)
 {
     bool bRet = false;

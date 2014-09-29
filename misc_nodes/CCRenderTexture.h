@@ -135,6 +135,7 @@ public:
     /** Listen "come to background" message, and save render texture.
      It only has effect on Android.
      */
+    bool saveToFileNoAlpha(const char *name, tCCImageFormat format);
     void listenToBackground(CCObject *obj);
     
     /** Listen "come to foreground" message and restore the frame buffer object

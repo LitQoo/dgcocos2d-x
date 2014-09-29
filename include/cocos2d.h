@@ -27,7 +27,9 @@ THE SOFTWARE.
 
 #ifndef __COCOS2D_H__
 #define __COCOS2D_H__
-
+#ifndef GL_STENCIL_INDEX
+	#define GL_STENCIL_INDEX 0x1901
+#endif
 // 0x00 HI ME LO
 // 00   02 02 05
 #define COCOS2D_VERSION 0x00020205

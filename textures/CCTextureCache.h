@@ -101,7 +101,9 @@ public:
     * Supported image extensions: .png, .bmp, .tiff, .jpeg, .pvr, .gif
     */
     CCTexture2D* addImage(const char* fileimage);
-
+    CCTexture2D * addImage(const char * path, bool relativePath); // by ksoo
+//    CCTexture2D * addImage(const char * path, bool is_document, std::string document_path);
+	CCTexture2D* addImage(const char* fileimage, bool is_document, std::string document_path, bool encrypted = false);
     /* Returns a Texture2D object given a file image
     * If the file image was not previously loaded, it will create a new CCTexture2D object and it will return it.
     * Otherwise it will load a texture in a new thread, and when the image is loaded, the callback will be called with the Texture2D as a parameter.
@@ -120,6 +122,7 @@ public:
     * If "key" is nil, then a new texture will be created each time.
     * @since v0.8
     */
+    void addImageAsync(const char *path, CCObject *target, SEL_CallFuncO selector, bool is_document, std::string document_path, bool encrypted = false);
     // todo: CGImageRef CCTexture2D* addCGImage(CGImageRef image, string &  key);
     /** Returns a Texture2D object given an UIImage image
     * If the image was not previously loaded, it will create a new CCTexture2D object and it will return it.

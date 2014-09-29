@@ -82,6 +82,9 @@ public:
     */
     bool initWithImageFile(const char * strPath, EImageFormat imageType = kFmtPng);
 
+bool initWithEncryptedImageFileFullPath(const char * fullPath, EImageFormat eImgFmt = kFmtPng/* = eFmtPng*/);
+
+   bool initWithEncryptedImageFile(const char * strPath, EImageFormat eImgFmt/* = eFmtPng*/);
     /*
      @brief The same result as with initWithImageFile, but thread safe. It is caused by
             loadImage() in CCTextureCache.cpp.

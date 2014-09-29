@@ -111,9 +111,11 @@ public:
      */
     bool isInverted() const;
     void setInverted(bool bInverted);
-    
+    void setRectYH(CCRect t_rect);
 protected:
     CCClippingNode();
+    bool is_YH;
+    CCRect rect_YH;
 };
 
 NS_CC_END
