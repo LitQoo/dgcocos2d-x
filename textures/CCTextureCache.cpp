@@ -134,10 +134,14 @@ static void loadImageData(AsyncStruct *pAsyncStruct)
         
     // generate image            
     CCImage *pImage = new CCImage();
-    if (pImage && !pImage->initWithImageFileThreadSafe(filename, imageType))
+	if (pImage &&
+			pAsyncStruct->encrypted ?
+			!pImage->initWithEncryptedImageFileFullPath(filename, imageType) :
+			!pImage->initWithImageFileThreadSafe(filename, imageType))
+//    if (pImage && !pImage->initWithImageFileThreadSafe(filename, imageType))
     {
         CC_SAFE_RELEASE(pImage);
-        CCLOG("can not load %s", filename);
+        CCLOG("can not load1 %s", filename);
         return;
     }
 
@@ -198,7 +202,7 @@ static void* loadEncryptedImage(void* data)
         if (pImage && !pImage->initWithEncryptedImageFileFullPath(filename, imageType))
         {
             CC_SAFE_RELEASE(pImage);
-            CCLOG("can not load %s", filename);
+            CCLOG("can not load2 %s", filename);
             continue;
         }
 
@@ -331,84 +335,7 @@ CCDictionary* CCTextureCache::snapshotTextures()
 
 void CCTextureCache::addImageAsync(const char *path, CCObject *target, SEL_CallFuncO selector)
 {
-#ifdef EMSCRIPTEN
-    CCLOGWARN("Cannot load image %s asynchronously in Emscripten builds.", path);
-    return;
-#endif // EMSCRIPTEN
-
-    CCAssert(path != NULL, "TextureCache: fileimage MUST not be NULL");    
-
-    CCTexture2D *texture = NULL;
-
-    // optimization
-
-    std::string pathKey = path;
-
-    pathKey = CCFileUtils::sharedFileUtils()->fullPathForFilename(pathKey.c_str());
-
-    texture = (CCTexture2D*)m_pTextures->objectForKey(pathKey.c_str());
-
-    std::string fullpath = pathKey;
-
-
-    if (texture != NULL)
-    {
-        if (target && selector)
-        {
-            (target->*selector)(texture);
-        }
-        
-        return;
-    }
-
-
-    // lazy init
-    if (s_pAsyncStructQueue == NULL)
-    {             
-        s_pAsyncStructQueue = new queue<AsyncStruct*>();
-        s_pImageQueue = new queue<ImageInfo*>();        
-        
-        pthread_mutex_init(&s_asyncStructQueueMutex, NULL);
-        pthread_mutex_init(&s_ImageInfoMutex, NULL);
-        pthread_mutex_init(&s_SleepMutex, NULL);
-        pthread_cond_init(&s_SleepCondition, NULL);
-#if (CC_TARGET_PLATFORM != CC_PLATFORM_WINRT) && (CC_TARGET_PLATFORM != CC_PLATFORM_WP8)
-        pthread_create(&s_loadingThread, NULL, loadImage, NULL);
-#endif
-        need_quit = false;
-    }
-
-    if (0 == s_nAsyncRefCount)
-    {
-        CCDirector::sharedDirector()->getScheduler()->scheduleSelector(schedule_selector(CCTextureCache::addImageAsyncCallBack), this, 0, false);
-    }
-
-    ++s_nAsyncRefCount;
-
-    if (target)
-    {
-        target->retain();
-    }
-
-    // generate async struct
-    AsyncStruct *data = new AsyncStruct();
-    data->filename = fullpath.c_str();
-    data->target = target;
-    data->selector = selector;
-
-#if (CC_TARGET_PLATFORM != CC_PLATFORM_WINRT) && (CC_TARGET_PLATFORM != CC_PLATFORM_WP8)
-    // add async struct into queue
-    pthread_mutex_lock(&s_asyncStructQueueMutex);
-    s_pAsyncStructQueue->push(data);
-    pthread_mutex_unlock(&s_asyncStructQueueMutex);
-    pthread_cond_signal(&s_SleepCondition);
-#else
-    // WinRT uses an Async Task to load the image since the ThreadPool has a limited number of threads
-    //std::replace( data->filename.begin(), data->filename.end(), '/', '\\'); 
-    create_task([this, data] {
-        loadImageData(data);
-    });
-#endif
+	addImageAsync(path, target, selector, false, "", false);
 }
 
 
@@ -652,7 +579,7 @@ void CCTextureCache::addImageAsync(const char *path, CCObject *target, SEL_CallF
     }
         else
         {
-            CCLOG("ZZ %s", pathKey.c_str());
+//            CCLOG("ZZ %s", pathKey.c_str());
         }
     // lazy init
     if (s_pAsyncStructQueue == NULL)
@@ -664,11 +591,17 @@ void CCTextureCache::addImageAsync(const char *path, CCObject *target, SEL_CallF
         pthread_mutex_init(&s_ImageInfoMutex, NULL);
         pthread_mutex_init(&s_SleepMutex, NULL);
         pthread_cond_init(&s_SleepCondition, NULL);
-            pthread_create(&s_loadingThread, NULL, loadImage, NULL);
-//          if(encrypted)
-//        pthread_create(&s_loadingThread, NULL, loadEncryptedImage, NULL);
-//          else
-                
+      
+//				if(encrypted)
+//				{
+//					CCLog("loadEncryptedImage : %s", path);
+//					pthread_create(&s_loadingThread, NULL, loadEncryptedImage, NULL);
+//				}
+//				else
+				{
+					CCLog("loadImage : %s", path);
+					pthread_create(&s_loadingThread, NULL, loadImage, NULL);
+				}
 
         need_quit = false;
     }
