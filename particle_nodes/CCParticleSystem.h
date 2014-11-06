@@ -30,6 +30,8 @@ THE SOFTWARE.
 #include "base_nodes/CCNode.h"
 #include "cocoa/CCDictionary.h"
 #include "cocoa/CCString.h"
+#include <map>
+#include <string>
 
 NS_CC_BEGIN
 
@@ -175,6 +177,7 @@ emitter.startSpin = 0;
 class CC_DLL CCParticleSystem : public CCNode, public CCTextureProtocol
 {    
 protected:
+	
     std::string m_sPlistFile;
     //! time elapsed since the start of the system (in seconds)
     float m_fElapsed;

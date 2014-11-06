@@ -29,6 +29,7 @@ THE SOFTWARE.
 
 #include  "CCParticleSystem.h"
 
+
 NS_CC_BEGIN
 
 class CCSpriteFrame;
